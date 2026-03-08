@@ -2,12 +2,12 @@ import sys
 import os
 import pandas as pd
 import streamlit as st
+import time  # <--- Add this missing import
 
 # 1. PATH INJECTION (Crucial for Cloud)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # 2. GLOBAL PATH DEFINITIONS
-# This fixes the NameError: output_csv is not defined
 raw_dir = "data/raw"
 processed_dir = "data/processed"
 output_csv = os.path.join(processed_dir, "evaluation_report.csv")
