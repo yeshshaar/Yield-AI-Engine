@@ -4,7 +4,9 @@ import pandas as pd
 import time
 from src.main import process_resumes_to_csv
 from src.optimizer import generate_optimized_bullets
+from src.database import init_db, get_all_evaluations
 
+init_db()
 # --- 1. SETTINGS & PATHS ---
 st.set_page_config(page_title="Yield.ai | MLE Evaluation Engine", layout="wide")
 
@@ -76,6 +78,12 @@ st.markdown("---")
 tab1, tab2 = st.tabs(["🏆 Leaderboard", "✨ AI Resume Optimizer"])
 
 with tab1:
+    history_df = get_all_evaluations()
+    if not history_df.empty:
+        st.subheader("📜 Historical Evaluations")
+        st.dataframe(history_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No evaluations in history yet.")
     if os.path.exists(output_csv):
         df = pd.read_csv(output_csv)
         

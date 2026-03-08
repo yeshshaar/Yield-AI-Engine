@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import time 
 from groq import Groq 
-
+from src.database import save_evaluation
 from src.extractor import extract_text_from_pdf
 from src.ai_parser import parse_resume_with_llama, parse_jd_with_llama
 from src.scorer import calculate_skill_match
@@ -93,11 +93,13 @@ def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw):
             print(f"🚨 LOG ERROR: Failed on {filename}: {e}")
 
     # 3. Final CSV Save
+    # 3. Final Database Save
     if results:
+        save_evaluation(results)
+        print(f"🏆 SUCCESS: Saved {len(results)} results to the Database.")
+        
+        # We still save a 'latest' CSV for the download button
         df = pd.DataFrame(results)
-        df = df.sort_values(by="Match Score (%)", ascending=False)
-        os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
         df.to_csv(output_csv_path, index=False)
-        print(f"🏆 SUCCESS: Created CSV with {len(results)} results at {output_csv_path}")
     else:
         print("🚨 LOG ERROR: No results were generated.")
