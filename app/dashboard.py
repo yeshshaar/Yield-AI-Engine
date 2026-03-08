@@ -5,6 +5,7 @@ import time
 from src.main import process_resumes_to_csv
 from src.optimizer import generate_optimized_bullets
 from src.database import init_db, get_all_evaluations
+from src.visualizer import create_radar_chart
 
 init_db()
 # --- 1. SETTINGS & PATHS ---
@@ -78,6 +79,30 @@ st.markdown("---")
 tab1, tab2 = st.tabs(["🏆 Leaderboard", "✨ AI Resume Optimizer"])
 
 with tab1:
+    history_df = get_all_evaluations()
+    if not history_df.empty:
+        st.subheader("📜 Evaluation History")
+        
+        # Select a candidate to see their specific analytics
+        selected_candidate = st.selectbox("Select Candidate for Detailed Analysis", history_df["Candidate Name"].unique())
+        
+        # Filter data for the selected person
+        candidate_row = history_df[history_df["Candidate Name"] == selected_candidate].iloc[0]
+        
+        # Create and display the Radar Chart
+        chart = create_radar_chart(
+            candidate_row["Candidate Name"], 
+            candidate_row["Matched Skills"], 
+            candidate_row["Missing Skills"]
+        )
+        st.plotly_chart(chart, use_container_width=True)
+        
+        # Display the full history table below
+        st.markdown("---")
+        st.dataframe(history_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No evaluations in history yet.")
+        
     history_df = get_all_evaluations()
     if not history_df.empty:
         st.subheader("📜 Historical Evaluations")
