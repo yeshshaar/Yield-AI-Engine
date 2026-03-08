@@ -15,7 +15,7 @@ output_csv = os.path.join(processed_dir, "evaluation_report.csv")
 # Ensure folders exist on the server
 os.makedirs(raw_dir, exist_ok=True)
 os.makedirs(processed_dir, exist_ok=True)
-
+from src.optimizer import generate_optimized_bullets
 # 3. NOW PROCEED WITH OTHER IMPORTS
 from src.main import process_resumes_to_csv
 from src.database import init_db, get_all_evaluations
@@ -43,7 +43,7 @@ if st.sidebar.button("🗑️ Clear Evaluation History", type="secondary"):
         st.sidebar.success("History Cleared!")
         time.sleep(1)
         st.rerun()
-        
+
 # --- 2. SIDEBAR DEBUGGER ---
 st.sidebar.title("🛠️ System Status")
 if "GROQ_API_KEY" in st.secrets:
@@ -71,33 +71,49 @@ with col2:
     jd_text = st.text_area("Paste the target JD here...", height=200)
 
 # Run Pipeline Button
+# --- RUN PIPELINE BUTTON WITH PROGRESS BAR ---
 if st.button("🚀 Run AI Evaluation", type="primary", use_container_width=True):
-    if not uploaded_files or not jd_text:
-        st.warning("⚠️ Please upload at least one resume and provide a Job Description.")
+    # Check if there are any PDFs in the raw folder (from Kaggle script or Uploads)
+    existing_files = [f for f in os.listdir(raw_dir) if f.endswith(".pdf")]
+    
+    if not uploaded_files and not existing_files:
+        st.warning("⚠️ No resumes found. Upload PDFs or run your Kaggle script first!")
+    elif not jd_text:
+        st.warning("⚠️ Please paste a Job Description to compare against.")
     else:
-        with st.spinner("Initializing Pipeline..."):
-            # Step A: Clean old files safely
-            if os.path.exists(raw_dir):
-                for file in os.listdir(raw_dir):
-                    file_path = os.path.join(raw_dir, file)
-                    try:
-                        if os.path.isfile(file_path):
-                            os.remove(file_path)
-                    except Exception:
-                        pass
-            
-            # Step B: Save new files
+        # 1. Save any newly uploaded files to the raw folder first
+        if uploaded_files:
             for uploaded_file in uploaded_files:
                 with open(os.path.join(raw_dir, uploaded_file.name), "wb") as f:
                     f.write(uploaded_file.getbuffer())
+        
+        # 2. Get the final list of files to process
+        files_to_process = [f for f in os.listdir(raw_dir) if f.endswith(".pdf")]
+        total_files = len(files_to_process)
+        
+        # 3. Create UI Placeholders for the Progress Bar
+        progress_bar = st.progress(0)
+        status_text = st.empty() 
+
+        with st.spinner("Pipeline active..."):
+            # We show a simulated progress update as the engine runs
+            # Note: The engine runs as one big batch, so we update the bar 
+            # to show the user the engine has started.
+            for i in range(100):
+                time.sleep(0.01) # Rapidly fill the bar to 10% to show start
+                if i < 10:
+                    progress_bar.progress(i + 1)
             
-            # Step C: Execute Analysis
+            status_text.text(f"⏳ Processing {total_files} resumes via Groq (Llama 3.1)...")
+            
+            # --- EXECUTE THE ACTUAL PIPELINE ---
             process_resumes_to_csv(raw_dir, output_csv, jd_text)
-            st.success("✅ Evaluation Complete! Check the tabs below.")
+            
+            # 4. Finalize UI
+            progress_bar.progress(100)
+            status_text.success(f"✅ Finished! {total_files} resumes analyzed and saved to Database.")
             time.sleep(1)
             st.rerun()
-
-st.markdown("---")
 
 # --- 4. TABS FOR RESULTS & OPTIMIZATION ---
 tab1, tab2 = st.tabs(["🏆 Leaderboard", "✨ AI Resume Optimizer"])
