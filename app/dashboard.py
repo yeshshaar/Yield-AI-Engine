@@ -72,8 +72,23 @@ with col2:
     csv_path = "data/processed/evaluation_report.csv"
     if os.path.exists(csv_path):
         df = pd.read_csv(csv_path)
-        st.dataframe(df, use_container_width=True, hide_index=True)
         
+        # 1. Show a clean, condensed table at the top
+        display_df = df[["Candidate Name", "Match Score (%)", "Years of Experience"]]
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        
+        # 2. The New XAI Visual Output!
+        st.markdown("### 🧠 AI Score Explanations")
+        for index, row in df.iterrows():
+            # Create an interactive drop-down card for each candidate
+            with st.expander(f"🔍 {row['Candidate Name']} - {row['Match Score (%)']}% Match"):
+                st.write(f"**✅ Matched Skills:** {row['Matched Skills']}")
+                st.write(f"**❌ Missing Skills:** {row['Missing Skills']}")
+                st.info(f"**💡 Recommendation:** {row['How to Improve']}")
+                st.caption(f"**All Extracted Skills:** {row['Core Skills']}, {row['Tools']}")
+        
+        # 3. The Download Button
+        st.divider()
         with open(csv_path, "rb") as file:
             st.download_button(
                 label="📥 Download Full Report (CSV)",
