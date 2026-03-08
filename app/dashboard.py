@@ -110,17 +110,17 @@ if st.button("🚀 Run AI Evaluation", type="primary", use_container_width=True)
         # EXECUTION
         with st.spinner("Pipeline active..."):
             process_resumes_to_csv(
-                raw_dir, 
-                output_csv, 
-                jd_text, 
-                progress_callback=update_ui_callback
-            )
+                raw_dir,                # 1. Folder with PDFs
+                output_csv,             # 2. Path to save CSV
+                jd_text,                # 3. The Job Description text
+                update_ui_callback      # 4. The progress bar function
+    )
             
         status_text.success(f"✅ Success! {total_files} resumes analyzed.")
         time.sleep(1)
         st.rerun()
 
-        
+
 # --- 4. TABS FOR RESULTS & OPTIMIZATION ---
 tab1, tab2 = st.tabs(["🏆 Leaderboard", "✨ AI Resume Optimizer"])
 
