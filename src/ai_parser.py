@@ -33,16 +33,8 @@ def parse_resume_with_llama(resume_text):
     return json.loads(response.choices[0].message.content)
 
 def parse_jd_with_llama(jd_text):
-    print("Extracting core skills from Job Description...")
     client = get_groq_client()
-    
-    prompt = f"""
-    Extract the core skills from this Job Description. 
-    Group interchangeable skills (like 'AWS or Azure') into one string.
-    Return a JSON object with a 'skills' key.
-    
-    JD: {jd_text}
-    """
+    # ... your prompt ...
     
     response = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
@@ -50,8 +42,11 @@ def parse_jd_with_llama(jd_text):
         response_format={"type": "json_object"}
     )
     
-    # Wait 2 seconds to avoid hitting the Rate Limit on the next call
-    time.sleep(2) 
+    data = json.loads(response.choices[0].message.content)
+    skills = data.get("skills", [])
     
-    result = json.loads(response.choices[0].message.content)
-    return result.get("skills", [])
+    # FIX: If the AI returns a string "Python, SQL", convert it to ["Python", "SQL"]
+    if isinstance(skills, str):
+        skills = [s.strip() for s in skills.split(",")]
+    
+    return skills

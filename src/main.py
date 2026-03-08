@@ -67,6 +67,10 @@ def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw):
             # Scoring
             candidate_skills = parsed_data.get("core_skills", []) + parsed_data.get("tools", [])
             match_score, matched, missing, improvement = calculate_skill_match(candidate_skills, jd_skills)
+
+            # Ensure matched and missing are actually lists before joining
+            if isinstance(matched, str): matched = [matched]
+            if isinstance(missing, str): missing = [missing]
             
             results.append({
                 "Candidate Name": parsed_data.get("name", "Unknown Candidate"),
