@@ -71,8 +71,14 @@ def parse_jd_with_llama(jd_text):
     
     prompt = f"""
     You are an expert technical recruiter. Extract the core technical skills, soft skills, tools, and platforms from the following Job Description.
+    
+    CRITICAL RULE FOR INTERCHANGEABLE SKILLS:
+    If the JD lists multiple tools where only one is required or they belong to the same category (e.g., "Python or R", "Azure, AWS, GCP", "Power BI, Tableau"), group them into a SINGLE combined string. Do NOT list them as separate skills.
+    
+    Example Output: 
+    {{"skills": ["Data Science", "SQL", "Python/R", "Data Visualization (Power BI/Tableau)", "Statistical Methods", "Cloud Platforms (Azure/AWS/GCP)"]}}
+    
     Return ONLY a valid JSON object with a single key "skills" containing a list of strings.
-    Example: {{"skills": ["Python", "Machine Learning", "AWS", "Communication"]}}
     
     Job Description:
     {jd_text}
