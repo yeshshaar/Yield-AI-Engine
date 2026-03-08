@@ -38,17 +38,18 @@ with col1:
                 os.makedirs(processed_dir, exist_ok=True)
                 
                 # Step A: Clean out the old resumes SAFELY
+                # Step A: Clean out the old resumes SAFELY
                 if os.path.exists(raw_dir):
                     for file in os.listdir(raw_dir):
                         file_path = os.path.join(raw_dir, file)
                         try:
-                            # Only try to remove if it's actually there at this exact microsecond
+                            # Only delete if the file actually exists right now
                             if os.path.isfile(file_path):
                                 os.remove(file_path)
                         except FileNotFoundError:
-                            pass # If it's already gone, great! Don't crash.
+                            pass # If it's already gone, don't crash
                         except Exception as e:
-                            st.warning(f"Note: Could not clear old file {file}: {e}")
+                            print(f"Skipping {file}: {e}")
                         
                 # Step B: Clean out the old CSV
                 output_csv = os.path.join(processed_dir, "evaluation_report.csv")
