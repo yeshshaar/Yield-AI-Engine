@@ -30,11 +30,29 @@ def parse_resume_with_llama(resume_text):
         model="llama-3.1-8b-instant",
         response_format={"type": "json_object"}
     )
-    return json.loads(response.choices[0].message.content)
+    
+    data = json.loads(response.choices[0].message.content)
+    
+    # TYPE GUARD: Ensure skills and tools are lists, not strings, to prevent letter-splitting
+    for key in ["core_skills", "tools", "projects"]:
+        value = data.get(key, [])
+        if isinstance(value, str):
+            data[key] = [s.strip() for s in value.split(",") if s.strip()]
+            
+    return data
 
 def parse_jd_with_llama(jd_text):
+    print("Extracting core skills from Job Description...")
     client = get_groq_client()
-    # ... your prompt ...
+    
+    # Missing prompt defined here
+    prompt = f"""
+    Extract the core skills from this Job Description. 
+    Group interchangeable skills (like 'AWS or Azure') into one string.
+    Return a JSON object with a 'skills' key containing a list of strings.
+    
+    JD: {jd_text}
+    """
     
     response = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
@@ -42,11 +60,14 @@ def parse_jd_with_llama(jd_text):
         response_format={"type": "json_object"}
     )
     
+    # Wait to avoid hitting the Rate Limit on the next call
+    time.sleep(1) 
+    
     data = json.loads(response.choices[0].message.content)
     skills = data.get("skills", [])
     
-    # FIX: If the AI returns a string "Python, SQL", convert it to ["Python", "SQL"]
+    # FIX: Ensure skills is a list of words, not a single string
     if isinstance(skills, str):
-        skills = [s.strip() for s in skills.split(",")]
+        skills = [s.strip() for s in skills.split(",") if s.strip()]
     
     return skills
