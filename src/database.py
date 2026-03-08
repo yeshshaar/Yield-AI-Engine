@@ -5,7 +5,7 @@ import os
 DB_PATH = "data/yield_engine.db"
 
 def init_db():
-    """Initializes the database and creates the evaluations table."""
+    """Initializes the database using exact matching keys from the pipeline."""
     os.makedirs("data", exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -13,14 +13,15 @@ def init_db():
         CREATE TABLE IF NOT EXISTS evaluations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            candidate_name TEXT,
-            match_score INTEGER,
-            matched_skills TEXT,
-            missing_skills TEXT,
-            experience_years INTEGER,
-            core_skills TEXT,
-            tools TEXT,
-            projects TEXT
+            "Candidate Name" TEXT,
+            "Match Score (%)" INTEGER,
+            "Matched Skills" TEXT,
+            "Missing Skills" TEXT,
+            "How to Improve" TEXT,
+            "Years of Experience" INTEGER,
+            "Core Skills" TEXT,
+            "Tools" TEXT,
+            "Projects" TEXT
         )
     ''')
     conn.commit()
