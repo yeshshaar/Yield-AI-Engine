@@ -3,13 +3,14 @@ import os
 import streamlit as st
 import pandas as pd
 
-# --- THE FIX: Tell Python to look in the main project folder ---
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# --- ABSOLUTE ROUTING ---
+# This finds the root directory of your project regardless of where it's hosted
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(BASE_DIR)
 
-# Now Python can successfully find the src folder!
 from src.main import process_resumes_to_csv
 
-# 1. Configure the page settings
+# Configure the page settings
 st.set_page_config(page_title="Yield.ai Dashboard", page_icon="🤖", layout="wide")
 
 st.title("🤖 Yield.ai: AI Resume Evaluation Engine")
@@ -21,81 +22,66 @@ col1, col2 = st.columns([1, 2])
 with col1:
     st.markdown("### 📥 Input Panel")
     
-    # Capture the uploaded files and JD text into variables
     uploaded_files = st.file_uploader("Upload Candidate Resumes (PDF)", accept_multiple_files=True, type=['pdf'])
-    jd_text = st.text_area("Paste Full Job Description Here:", height=200, placeholder="Paste the entire messy job posting here. Yield.ai will automatically extract the core requirements...")
+    jd_text = st.text_area("Paste Full Job Description Here:", height=200, placeholder="Paste the entire job posting here...")
     
-    # When the user clicks the button, this block runs
     if st.button("🚀 Run AI Evaluation", type="primary"):
         if not uploaded_files or not jd_text:
             st.error("⚠️ Please upload at least one resume and enter JD skills!")
         else:
-            with st.spinner("Yield.ai Engine is reading resumes and calculating vectors..."):
+            with st.spinner("Yield.ai Engine is processing..."):
                 
-                # --- Ensure cloud directories exist ---
-                raw_dir = "data/raw/"
-                processed_dir = "data/processed/"
+                # Force Absolute Paths for the Cloud
+                raw_dir = os.path.join(BASE_DIR, "data", "raw")
+                processed_dir = os.path.join(BASE_DIR, "data", "processed")
                 os.makedirs(raw_dir, exist_ok=True)
                 os.makedirs(processed_dir, exist_ok=True)
                 
-                # Step A: Clean out the old resumes from data/raw/
+                # Step A: Clean out the old resumes
                 for file in os.listdir(raw_dir):
                     if file.lower().endswith(".pdf"):
                         os.remove(os.path.join(raw_dir, file))
                         
-                # Step B: Clean out the old CSV so we don't read old data
+                # Step B: Clean out the old CSV
                 output_csv = os.path.join(processed_dir, "evaluation_report.csv")
                 if os.path.exists(output_csv):
                     os.remove(output_csv)
                 
-                # Step C: Save the newly uploaded files into data/raw/
+                # Step C: Save newly uploaded files
                 for uploaded_file in uploaded_files:
-                    with open(os.path.join(raw_dir, uploaded_file.name), "wb") as f:
+                    file_path = os.path.join(raw_dir, uploaded_file.name)
+                    with open(file_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
+                    print(f"DEBUG: Saved file to {file_path}") # This will show in logs
                 
-                # Step D: Turn the comma-separated JD text into a Python list
-                jd_skills_list = [skill.strip() for skill in jd_text.split(",")]
-                
-                # Step E: Run your ML Pipeline!
-                # Step D: Run your ML Pipeline with the raw JD text!
+                # Step D: Run ML Pipeline
                 process_resumes_to_csv(raw_dir, output_csv, jd_text)
                 
-                # Step F: Check if it ACTUALLY worked
                 if os.path.exists(output_csv):
                     st.success("✅ Evaluation Complete!")
-                    st.rerun() # This forces the page to refresh and show the table!
+                    st.rerun()
                 else:
-                    st.error("🚨 Pipeline Failed: No data was extracted. Check the Streamlit logs for API errors!")
+                    st.error("🚨 Pipeline Failed: Check the logs to see if the files were saved correctly.")
 
 with col2:
     st.markdown("### 📊 Candidate Leaderboard")
     
-    csv_path = "data/processed/evaluation_report.csv"
+    csv_path = os.path.join(BASE_DIR, "data", "processed", "evaluation_report.csv")
     if os.path.exists(csv_path):
         df = pd.read_csv(csv_path)
         
-        # 1. Show a clean, condensed table at the top
         display_df = df[["Candidate Name", "Match Score (%)", "Years of Experience"]]
         st.dataframe(display_df, use_container_width=True, hide_index=True)
         
-        # 2. The New XAI Visual Output!
         st.markdown("### 🧠 AI Score Explanations")
         for index, row in df.iterrows():
-            # Create an interactive drop-down card for each candidate
             with st.expander(f"🔍 {row['Candidate Name']} - {row['Match Score (%)']}% Match"):
                 st.write(f"**✅ Matched Skills:** {row['Matched Skills']}")
                 st.write(f"**❌ Missing Skills:** {row['Missing Skills']}")
                 st.info(f"**💡 Recommendation:** {row['How to Improve']}")
-                st.caption(f"**All Extracted Skills:** {row['Core Skills']}, {row['Tools']}")
         
-        # 3. The Download Button
         st.divider()
         with open(csv_path, "rb") as file:
-            st.download_button(
-                label="📥 Download Full Report (CSV)",
-                data=file,
-                file_name="yield_ai_evaluation_report.csv",
-                mime="text/csv",
-            )
+            st.download_button(label="📥 Download Full Report (CSV)", data=file, file_name="yield_ai_report.csv", mime="text/csv")
     else:
-        st.info("No candidates evaluated yet. Upload resumes and run the engine to see the leaderboard.")
+        st.info("No candidates evaluated yet.")
