@@ -1,81 +1,72 @@
 import os
 import pandas as pd
 import json
+from groq import Groq # Ensure this is imported
 
 from src.extractor import extract_text_from_pdf
 from src.ai_parser import parse_resume_with_llama, parse_jd_with_llama
 from src.scorer import calculate_skill_match
 from src.sanitizer import clean_pii
 
-def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw):
-    """Orchestrates the pipeline with deep logging for debugging."""
-    print(f"--- PIPELINE START ---")
-    print(f"Checking folder: {os.path.abspath(resume_folder)}")
-    
-    # 1. Check if the folder even exists and what is inside it
-    if not os.path.exists(resume_folder):
-        print(f"🚨 ERROR: Folder {resume_folder} does not exist!")
-        return
-    
-    files_in_dir = os.listdir(resume_folder)
-    print(f"Files found in {resume_folder}: {files_in_dir}")
+def check_api():
+    """Diagnostic check to see if Groq is actually working in the cloud."""
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        print("🚨 LOG ERROR: GROQ_API_KEY is missing from Streamlit Secrets!")
+        return False
+    print(f"✅ LOG: API Key found (starts with {api_key[:6]}...)")
+    return True
 
-    # 2. Parse the JD
+def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw):
+    print(f"--- DIAGNOSTIC PIPELINE START ---")
+    
+    if not check_api():
+        return
+
+    # Check the folder
+    if not os.path.exists(resume_folder):
+        print(f"🚨 LOG ERROR: {resume_folder} does not exist!")
+        return
+        
+    files = [f for f in os.listdir(resume_folder) if f.lower().endswith(".pdf")]
+    print(f"✅ LOG: Found {len(files)} files: {files}")
+
     try:
         jd_skills = parse_jd_with_llama(jd_text_raw)
-        print(f"Target JD Skills: {jd_skills}")
+        print(f"✅ LOG: JD Extracted: {jd_skills}")
     except Exception as e:
-        print(f"🚨 JD Extraction Failed: {e}")
-        raise e
+        print(f"🚨 LOG ERROR: JD AI Failed! Error: {e}")
+        return # Stop here if JD fails
 
     results = []
-    
-    # 3. Process each file
-    for filename in files_in_dir:
-        if filename.lower().endswith(".pdf"):
-            pdf_path = os.path.join(resume_folder, filename)
-            print(f"Processing file: {pdf_path}")
+    for filename in files:
+        pdf_path = os.path.join(resume_folder, filename)
+        print(f"Processing: {filename}")
+        
+        try:
+            raw_text = extract_text_from_pdf(pdf_path)
+            sanitized_text = clean_pii(raw_text)
+            parsed_data = parse_resume_with_llama(sanitized_text)
             
-            try:
-                # Extraction
-                raw_text = extract_text_from_pdf(pdf_path)
-                if not raw_text:
-                    print(f"⚠️ Warning: No text found in {filename}")
-                    continue
-                
-                # Sanitization
-                sanitized_text = clean_pii(raw_text)
-                
-                # AI Parsing
-                parsed_data = parse_resume_with_llama(sanitized_text)
-                
-                # Scoring
-                candidate_skills = parsed_data.get("core_skills", []) + parsed_data.get("tools", [])
-                match_score, matched, missing, improvement = calculate_skill_match(candidate_skills, jd_skills)
-                
-                record = {
-                    "Candidate Name": parsed_data.get("name", "Unknown"),
-                    "Match Score (%)": match_score,
-                    "Matched Skills": ", ".join(matched),
-                    "Missing Skills": ", ".join(missing),
-                    "How to Improve": improvement,
-                    "Years of Experience": parsed_data.get("years_of_experience", 0),
-                    "Core Skills": ", ".join(parsed_data.get("core_skills", [])),
-                    "Tools": ", ".join(parsed_data.get("tools", [])),
-                    "Projects": ", ".join(parsed_data.get("projects", []))
-                }
-                results.append(record)
-                print(f"✅ Successfully evaluated {filename}")
-                
-            except Exception as e:
-                print(f"🚨 CRASH while processing {filename}: {e}")
-                raise e
-                
-    # 4. Save to CSV
+            candidate_skills = parsed_data.get("core_skills", []) + parsed_data.get("tools", [])
+            match_score, matched, missing, improvement = calculate_skill_match(candidate_skills, jd_skills)
+            
+            results.append({
+                "Candidate Name": parsed_data.get("name", "Unknown"),
+                "Match Score (%)": match_score,
+                "Matched Skills": ", ".join(matched),
+                "Missing Skills": ", ".join(missing),
+                "How to Improve": improvement,
+                "Years of Experience": parsed_data.get("years_of_experience", 0),
+                "Core Skills": ", ".join(parsed_data.get("core_skills", [])),
+                "Tools": ", ".join(parsed_data.get("tools", [])),
+                "Projects": ", ".join(parsed_data.get("projects", []))
+            })
+        except Exception as e:
+            print(f"🚨 LOG ERROR: Failed on {filename}: {e}")
+
     if results:
-        df = pd.DataFrame(results)
-        df = df.sort_values(by="Match Score (%)", ascending=False) 
-        df.to_csv(output_csv_path, index=False)
-        print(f"SUCCESS: Created CSV at {output_csv_path}")
+        pd.DataFrame(results).to_csv(output_csv_path, index=False)
+        print(f"🏆 SUCCESS: CSV created at {output_csv_path}")
     else:
-        print("🚨 PIPELINE ENDED: No results generated. Loop finished without matches.")
+        print("🚨 LOG ERROR: Pipeline finished with 0 results.")
