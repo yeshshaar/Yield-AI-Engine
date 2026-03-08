@@ -1,11 +1,15 @@
-import streamlit as st
+import sys
 import os
-import pandas as pd
-import time
+
+# This tells the Streamlit Cloud server to look in the main folder for your modules
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# NOW your existing imports will work perfectly
+import streamlit as st
 from src.main import process_resumes_to_csv
-from src.optimizer import generate_optimized_bullets
 from src.database import init_db, get_all_evaluations
 from src.visualizer import create_radar_chart
+
 
 init_db()
 # --- 1. SETTINGS & PATHS ---
@@ -102,7 +106,7 @@ with tab1:
         st.dataframe(history_df, use_container_width=True, hide_index=True)
     else:
         st.info("No evaluations in history yet.")
-        
+
     history_df = get_all_evaluations()
     if not history_df.empty:
         st.subheader("📜 Historical Evaluations")
