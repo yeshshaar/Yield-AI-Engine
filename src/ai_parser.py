@@ -43,7 +43,7 @@ def parse_resume_with_llama(raw_text):
         
     except Exception as e:
         print(f"AI Extraction Failed: {e}")
-        return None
+        raise e  # <-- THIS FORCES THE ERROR ONTO THE SCREEN
 
 # --- Testing the AI ---
 if __name__ == "__main__":
@@ -99,6 +99,5 @@ def parse_jd_with_llama(jd_text):
         return result.get("skills", [])
         
     except Exception as e:
-        print(f"JD AI Extraction Failed: {e}")
-        # Fallback engineering: If the AI fails, just split it by commas like we used to!
-        return [skill.strip() for skill in jd_text.split(",") if skill.strip()]
+        print(f"AI Extraction Failed: {e}")
+        raise e  # <-- THIS FORCES THE ERROR ONTO THE SCREEN
