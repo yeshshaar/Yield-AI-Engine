@@ -4,11 +4,31 @@ import os
 
 DB_PATH = "data/yield_engine.db"
 
+import sqlite3
+import pandas as pd
+import os
+
+DB_PATH = "data/yield_engine.db"
+
 def init_db():
-    """Initializes the database using exact matching keys from the pipeline."""
+    """Initializes the database and forces a schema check."""
     os.makedirs("data", exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    
+    # If the table exists, we check if it's the old version
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='evaluations';")
+    table_exists = cursor.fetchone()
+
+    if table_exists:
+        # Check if "Candidate Name" exists in the table
+        cursor.execute("PRAGMA table_info(evaluations)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if "Candidate Name" not in columns:
+            print("⚠️ Stale database detected. Dropping old table...")
+            cursor.execute("DROP TABLE evaluations")
+    
+    # Recreate table with correct column names
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS evaluations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
