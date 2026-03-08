@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import json
-import time # Added for rate-limit safety
+import time 
 from groq import Groq 
 
 from src.extractor import extract_text_from_pdf
@@ -22,7 +22,6 @@ def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw):
     if not check_api():
         return
 
-    # Use absolute paths to avoid Linux directory confusion
     abs_resume_path = os.path.abspath(resume_folder)
     
     if not os.path.exists(abs_resume_path):
@@ -40,7 +39,7 @@ def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw):
     try:
         jd_skills = parse_jd_with_llama(jd_text_raw)
         print(f"✅ LOG: JD Extracted: {jd_skills}")
-        time.sleep(1) # Brief pause to respect Groq rate limits
+        time.sleep(1) 
     except Exception as e:
         print(f"🚨 LOG ERROR: JD AI Failed! {e}")
         return 
@@ -53,38 +52,42 @@ def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw):
         print(f"🔍 Analyzing: {filename}...")
         
         try:
-            # Extraction & Sanitization
             raw_text = extract_text_from_pdf(pdf_path)
             if not raw_text:
                 print(f"⚠️ Warning: Could not extract text from {filename}")
                 continue
                 
             sanitized_text = clean_pii(raw_text)
-            
-            # AI Parsing
             parsed_data = parse_resume_with_llama(sanitized_text)
             
+            # Extract lists safely from the AI response
+            core_skills = parsed_data.get("core_skills", [])
+            tools = parsed_data.get("tools", [])
+            projects = parsed_data.get("projects", [])
+
             # Scoring
-            candidate_skills = parsed_data.get("core_skills", []) + parsed_data.get("tools", [])
+            candidate_skills = core_skills + tools
             match_score, matched, missing, improvement = calculate_skill_match(candidate_skills, jd_skills)
 
-            # Ensure matched and missing are actually lists before joining
-            if isinstance(matched, str): matched = [matched]
-            if isinstance(missing, str): missing = [missing]
+            # --- DATA HARDENING: Prevents letter-splitting ---
+            def list_to_str(val):
+                if isinstance(val, list):
+                    return ", ".join(val) if val else "None"
+                return str(val) if val else "None"
             
             results.append({
                 "Candidate Name": parsed_data.get("name", "Unknown Candidate"),
                 "Match Score (%)": int(match_score),
-                "Matched Skills": ", ".join(matched) if matched else "None",
-                "Missing Skills": ", ".join(missing) if missing else "None",
+                "Matched Skills": list_to_str(matched),
+                "Missing Skills": list_to_str(missing),
                 "How to Improve": improvement,
                 "Years of Experience": parsed_data.get("years_of_experience", 0),
-                "Core Skills": ", ".join(parsed_data.get("core_skills", [])),
-                "Tools": ", ".join(parsed_data.get("tools", [])),
-                "Projects": ", ".join(parsed_data.get("projects", []))
+                "Core Skills": list_to_str(core_skills),
+                "Tools": list_to_str(tools),
+                "Projects": list_to_str(projects)
             })
             print(f"✅ Successfully processed {filename}")
-            time.sleep(1) # Safety gap between AI calls
+            time.sleep(1) 
             
         except Exception as e:
             print(f"🚨 LOG ERROR: Failed on {filename}: {e}")
@@ -92,13 +95,8 @@ def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw):
     # 3. Final CSV Save
     if results:
         df = pd.DataFrame(results)
-        
-        # Sort by score so the best candidates are at the top
         df = df.sort_values(by="Match Score (%)", ascending=False)
-        
-        # Ensure the directory exists
         os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
-        
         df.to_csv(output_csv_path, index=False)
         print(f"🏆 SUCCESS: Created CSV with {len(results)} results at {output_csv_path}")
     else:
