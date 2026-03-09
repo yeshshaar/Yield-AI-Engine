@@ -37,6 +37,10 @@ init_db()
 # --- 5. UI COMPONENTS ---
 def render_scorecard(candidate_name, row_data):
     """Draws the professional SaaS-style dashboard using the CSV/DB row data."""
+    
+    # Convert the Pandas Series to a standard dictionary to prevent extraction errors
+    row_dict = dict(row_data)
+
     st.markdown("""
         <style>
         .matched-tag { background-color: #e6fffa; color: #2c7a7b; padding: 4px 10px; border-radius: 15px; margin: 3px; display: inline-block; font-size: 14px; border: 1px solid #81e6d9;}
@@ -44,6 +48,15 @@ def render_scorecard(candidate_name, row_data):
         </style>
     """, unsafe_allow_html=True)
 
+    st.subheader(f"📄 Evaluation: {candidate_name}")
+    
+    # 👇 THIS IS THE MISSING PART THAT CAUSED THE CRASH 👇
+    overall = row_dict.get("Score", 0)
+    skill_m = row_dict.get("Skill Match", 0)
+    sem_m = row_dict.get("Semantic Match", 0)
+    exp_m = row_dict.get("Experience Relevance", 0)
+    # 👆 ---------------------------------------------- 👆
+
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Overall Score", f"{overall}%")
     col2.metric("Skill Match", f"{skill_m}%")
@@ -52,7 +65,7 @@ def render_scorecard(candidate_name, row_data):
     
     st.divider() 
     
-    # 👇 ADD THIS NEW EXPANDER BLOCK HERE 👇
+    # The Explainer UI
     with st.expander("🔍 How is this score calculated?"):
         st.write("""
         **The Yield-AI Engine uses a weighted algorithm to ensure a balanced evaluation:**
@@ -60,35 +73,15 @@ def render_scorecard(candidate_name, row_data):
         * **Semantic Match (35%):** Contextual relevance using Llama 3.1 to understand if past projects align with the target role.
         * **Experience Relevance (25%):** Analysis of career progression and time spent with core technologies.
         """)
-    # 👆 END OF NEW BLOCK 👆
 
     # Safely parse skills strings into lists
-    matched_skills = str(row_data.get("Matched Skills", "")).split(", ")
-    
-    st.subheader(f"📄 Evaluation: {candidate_name}")
-    
-    # Safely extract scores (defaults to 0 if your CSV doesn't have these columns yet)
-    overall = row_data.get("Score", 0) 
-    skill_m = row_data.get("Skill Match", 0)
-    sem_m = row_data.get("Semantic Match", 0)
-    exp_m = row_data.get("Experience Relevance", 0)
-
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Overall Score", f"{overall}%")
-    col2.metric("Skill Match", f"{skill_m}%")
-    col3.metric("Semantic Match", f"{sem_m}%")
-    col4.metric("Experience", f"{exp_m}%")
-    
-    st.divider() 
-    
-    # Safely parse skills strings into lists
-    matched_skills = str(row_data.get("Matched Skills", "")).split(", ")
-    missing_skills = str(row_data.get("Missing Skills", "")).split(", ")
+    matched_skills = str(row_dict.get("Matched Skills", "")).split(", ")
+    missing_skills = str(row_dict.get("Missing Skills", "")).split(", ")
 
     left_col, right_col = st.columns(2)
     with left_col:
         st.markdown("**✅ Matched Skills**")
-        if matched_skills and matched_skills[0] != "nan" and matched_skills[0] != "":
+        if matched_skills and matched_skills[0] not in ["nan", "", "None"]:
             matched_html = "".join([f'<span class="matched-tag">{skill}</span>' for skill in matched_skills])
             st.markdown(matched_html, unsafe_allow_html=True)
         else:
@@ -96,7 +89,7 @@ def render_scorecard(candidate_name, row_data):
             
     with right_col:
         st.markdown("**❌ Missing Skills**")
-        if missing_skills and missing_skills[0] != "nan" and missing_skills[0] != "":
+        if missing_skills and missing_skills[0] not in ["nan", "", "None"]:
             missing_html = "".join([f'<span class="missing-tag">{skill}</span>' for skill in missing_skills])
             st.markdown(missing_html, unsafe_allow_html=True)
         else:

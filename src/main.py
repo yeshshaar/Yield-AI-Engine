@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import json
 import time 
+import streamlit as st
 from groq import Groq 
 from src.database import save_evaluation
 from src.extractor import extract_text_from_pdf
@@ -9,8 +10,24 @@ from src.ai_parser import parse_resume_with_llama, parse_jd_with_llama
 from src.scorer import calculate_skill_match
 from src.sanitizer import clean_pii
 
+# --- 1. INITIALIZE GROQ SAFELY ---
+try:
+    API_KEY = st.secrets["GROQ_API_KEY"]
+except (FileNotFoundError, KeyError):
+    API_KEY = os.environ.get("GROQ_API_KEY")
+
+if API_KEY:
+    client = Groq(api_key=API_KEY)
+else:
+    print("🚨 ERROR: GROQ_API_KEY is missing!")
+    client = None
+
+# --- 2. CORE FUNCTIONS ---
 def evaluate_with_llama(resume_text, jd_text):
     """Sends the prompt to Groq and forces a JSON response."""
+    if not client:
+        return None
+
     system_prompt = """
     You are an expert Technical Recruiter evaluating a resume against a Job Description.
     You must analyze the candidate and return strictly a JSON object. Do not include any markdown formatting or extra text outside the JSON.
@@ -43,9 +60,16 @@ def evaluate_with_llama(resume_text, jd_text):
 
 def process_evaluation(llm_json_response):
     """Parses the JSON and calculates the Yield-AI weighted score."""
+    if not llm_json_response:
+        return None
+        
+    # Clean rogue markdown just in case the AI wraps it in ```json
+    cleaned_response = llm_json_response.replace("```json", "").replace("```", "").strip()
+    
     try:
-        data = json.loads(llm_json_response)
-    except Exception:
+        data = json.loads(cleaned_response)
+    except Exception as e:
+        print(f"JSON Parsing Error: {e}")
         return None 
         
     s_skill = data.get("skill_match_score", 0)
@@ -66,106 +90,62 @@ def process_evaluation(llm_json_response):
         "missing_skills": data.get("missing_skills", [])
     }
 
-def check_api():
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        print("🚨 LOG ERROR: GROQ_API_KEY is missing from Streamlit Secrets!")
-        return False
-    return True
-
-def process_resumes_to_csv(resume_folder, output_csv_path, jd_text_raw, progress_callback=None):
-
-    print(f"--- 🚀 YIELD.AI PIPELINE START ---")
-    
-    if not check_api():
-        return
-
-    abs_resume_path = os.path.abspath(resume_folder)
-    
-    if not os.path.exists(abs_resume_path):
-        print(f"🚨 LOG ERROR: {abs_resume_path} not found!")
-        return
-        
-    files = [f for f in os.listdir(abs_resume_path) if f.lower().endswith(".pdf")]
-    total_files = len(files)
-    print(f"✅ LOG: Found {total_files} files: {files}")
-
-    if not files:
-        print("🚨 LOG ERROR: No PDF files to process.")
-        return
-
-    # 1. Parse JD (Initial Progress Update)
-    if progress_callback:
-        progress_callback(0, total_files, "Extracting Job Description Skills...")
-        
-    try:
-        jd_skills = parse_jd_with_llama(jd_text_raw)
-        print(f"✅ LOG: JD Extracted: {jd_skills}")
-        time.sleep(1) 
-    except Exception as e:
-        print(f"🚨 LOG ERROR: JD AI Failed! {e}")
-        return 
-
+def process_resumes_to_csv(raw_dir, output_csv, jd_text, progress_callback=None):
+    """
+    Reads PDFs, scores them using the Yield-AI weighted engine, 
+    and saves the detailed breakdown to a CSV for the UI.
+    """
     results = []
-    
-    # 2. Process Files
+    files = [f for f in os.listdir(raw_dir) if f.endswith('.pdf')]
+    total_files = len(files)
+
     for i, filename in enumerate(files):
-        # --- UI CALLBACK: Update bar and text ---
+        filepath = os.path.join(raw_dir, filename)
+        candidate_name = filename.replace(".pdf", "").replace("_", " ")
+        
+        # 1. 📂 Extract Text from PDF (Fixed the hardcoded placeholder!)
+        try:
+            resume_text = extract_text_from_pdf(filepath) 
+        except Exception as e:
+            print(f"PDF Extraction Error on {filename}: {e}")
+            resume_text = ""
+        
+        # 2. 🧠 Call the Groq Engine
+        raw_json_result = evaluate_with_llama(resume_text, jd_text)
+        
+        # 3. 🧮 Process the Math
+        if raw_json_result:
+            parsed_data = process_evaluation(raw_json_result)
+        else:
+            parsed_data = None
+
+        # Fallback if API fails or parsing breaks
+        if not parsed_data:
+            parsed_data = {
+                "overall_score": 0,
+                "breakdown": {"Skill Match": 0, "Semantic Match": 0, "Experience Relevance": 0},
+                "matched_skills": [],
+                "missing_skills": []
+            }
+
+        # 4. 📊 Map to UI Columns
+        results.append({
+            "Candidate Name": candidate_name,
+            "Score": parsed_data["overall_score"],
+            "Skill Match": parsed_data["breakdown"]["Skill Match"],
+            "Semantic Match": parsed_data["breakdown"]["Semantic Match"],
+            "Experience Relevance": parsed_data["breakdown"]["Experience Relevance"],
+            "Matched Skills": ", ".join(parsed_data["matched_skills"]),
+            "Missing Skills": ", ".join(parsed_data["missing_skills"])
+        })
+
         if progress_callback:
             progress_callback(i, total_files, filename)
-            
-        pdf_path = os.path.join(abs_resume_path, filename)
-        print(f"🔍 Analyzing: {filename}...")
-        
-        try:
-            raw_text = extract_text_from_pdf(pdf_path)
-            if not raw_text:
-                print(f"⚠️ Warning: Could not extract text from {filename}")
-                continue
-                
-            sanitized_text = clean_pii(raw_text)
-            parsed_data = parse_resume_with_llama(sanitized_text)
-            
-            # Extract lists safely from the AI response
-            core_skills = parsed_data.get("core_skills", [])
-            tools = parsed_data.get("tools", [])
-            projects = parsed_data.get("projects", [])
 
-            # Scoring
-            candidate_skills = core_skills + tools
-            match_score, matched, missing, improvement = calculate_skill_match(candidate_skills, jd_skills)
-
-            # --- DATA HARDENING: Prevents letter-splitting ---
-            def list_to_str(val):
-                if isinstance(val, list):
-                    return ", ".join(val) if val else "None"
-                return str(val) if val else "None"
-            
-            results.append({
-                "Candidate Name": parsed_data.get("name", filename.replace(".pdf", "")),
-                "Match Score (%)": int(match_score),
-                "Matched Skills": list_to_str(matched),
-                "Missing Skills": list_to_str(missing),
-                "How to Improve": improvement,
-                "Years of Experience": parsed_data.get("years_of_experience", 0),
-                "Core Skills": list_to_str(core_skills),
-                "Tools": list_to_str(tools),
-                "Projects": list_to_str(projects)
-            })
-            print(f"✅ Successfully processed {filename}")
-            
-            # Pause to respect Groq Rate Limits
-            time.sleep(1.5) 
-            
-        except Exception as e:
-            print(f"🚨 LOG ERROR: Failed on {filename}: {e}")
-
-    # 3. Final Database and CSV Save
-    if results:
-        save_evaluation(results)
-        print(f"🏆 SUCCESS: Saved {len(results)} results to the Database.")
-        
-        df = pd.DataFrame(results)
-        df.to_csv(output_csv_path, index=False)
-    else:
-        print("🚨 LOG ERROR: No results were generated.")
+    # 5. 💾 Save to CSV
+    df = pd.DataFrame(results)
+    if not df.empty:
+        df = df.sort_values(by="Score", ascending=False)
+    df.to_csv(output_csv, index=False)
+    
+    return df
