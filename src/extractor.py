@@ -1,38 +1,46 @@
-import fitz  # This is the PyMuPDF library we just installed
 import os
+import PyPDF2
+import docx
 
-def extract_text_from_pdf(pdf_path):
-    """Reads a PDF and extracts all raw text from it."""
-    print(f"Attempting to read: {pdf_path}")
+def extract_text_from_pdf(filepath):
+    """Extracts text from a standard PDF file."""
     text = ""
-    
     try:
-        # Open the PDF document
-        doc = fitz.open(pdf_path)
-        
-        # Loop through every page and pull the text
-        for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
-            text += page.get_text()
-            
-        return text
-        
+        with open(filepath, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
+            for page in reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
     except Exception as e:
-        print(f"Error reading {pdf_path}. The error was: {e}")
-        return None
-
-# --- Testing our function ---
-if __name__ == "__main__":
-    # We are pointing the script to look inside your data/raw folder
-    test_resume_path = "data/raw/test_resume.pdf"
+        print(f"🚨 Error reading PDF {filepath}: {e}")
     
-    # Check if the file actually exists before trying to read it
-    if os.path.exists(test_resume_path):
-        print("File found! Extracting text...\n")
-        raw_text = extract_text_from_pdf(test_resume_path)
+    return text.strip()
+
+def extract_text_from_docx(filepath):
+    """Extracts text from a Microsoft Word document."""
+    try:
+        doc = docx.Document(filepath)
+        # Using list comprehension to grab text, ignoring completely empty lines
+        full_text = [para.text for para in doc.paragraphs if para.text.strip()]
+        return '\n'.join(full_text)
+    except Exception as e:
+        print(f"🚨 Error reading DOCX {filepath}: {e}")
+        return ""
+
+def extract_text_from_file(filepath):
+    """Master router: Checks the extension and routes to the correct extractor."""
+    # Safety check
+    if not filepath or not os.path.exists(filepath):
+        print(f"🚨 Error: File not found at {filepath}")
+        return ""
         
-        print("--- EXTRACTED TEXT PREVIEW (First 500 characters) ---")
-        # We print just the first 500 characters so it doesn't flood your terminal
-        print(raw_text[:500]) 
+    ext = os.path.splitext(filepath)[1].lower()
+    
+    if ext == '.pdf':
+        return extract_text_from_pdf(filepath)
+    elif ext == '.docx':
+        return extract_text_from_docx(filepath)
     else:
-        print(f"Waiting for data! Please put a PDF named 'test_resume.pdf' inside the data/raw/ folder.")
+        print(f"⚠️ Unsupported file format bypassed: {ext}")
+        return ""

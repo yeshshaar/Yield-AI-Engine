@@ -234,8 +234,7 @@ st.markdown("---")
 col1, col2 = st.columns([1, 1])
 with col1:
     st.subheader("📄 Upload Resumes")
-    uploaded_files = st.file_uploader("Choose PDF files", accept_multiple_files=True, type="pdf")
-with col2:
+    uploaded_files = st.file_uploader("Choose PDF or Word files", accept_multiple_files=True, type=["pdf", "docx"])
     st.subheader("📝 Job Description")
     jd_text = st.text_area("Paste the target JD here...", height=200)
 
@@ -245,7 +244,7 @@ if st.button("🚀 Run AI Evaluation", type="primary", use_container_width=True)
             with open(os.path.join(raw_dir, uploaded_file.name), "wb") as f:
                 f.write(uploaded_file.getbuffer())
     
-    files_to_process = [f for f in os.listdir(raw_dir) if f.endswith(".pdf")]
+    files_to_process = [f for f in os.listdir(raw_dir) if f.lower().endswith(('.pdf', '.docx'))]
     
     if not files_to_process:
         st.warning("⚠️ No resumes found.")

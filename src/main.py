@@ -5,7 +5,7 @@ import time
 import streamlit as st
 from groq import Groq 
 from src.database import save_evaluation
-from src.extractor import extract_text_from_pdf
+from src.extractor import extract_text_from_file
 from src.ai_parser import parse_resume_with_llama, parse_jd_with_llama
 from src.scorer import calculate_skill_match
 from src.sanitizer import clean_pii
@@ -96,7 +96,7 @@ def process_resumes_to_csv(raw_dir, output_csv, jd_text, progress_callback=None)
     and saves the detailed breakdown to a CSV for the UI.
     """
     results = []
-    files = [f for f in os.listdir(raw_dir) if f.endswith('.pdf')]
+    files = [f for f in os.listdir(raw_dir) if f.lower().endswith(('.pdf', '.docx'))]
     total_files = len(files)
 
     for i, filename in enumerate(files):
@@ -105,7 +105,7 @@ def process_resumes_to_csv(raw_dir, output_csv, jd_text, progress_callback=None)
         
         # 1. 📂 Extract Text from PDF (Fixed the hardcoded placeholder!)
         try:
-            resume_text = extract_text_from_pdf(filepath) 
+            resume_text = extract_text_from_file(filepath) 
         except Exception as e:
             print(f"PDF Extraction Error on {filename}: {e}")
             resume_text = ""
