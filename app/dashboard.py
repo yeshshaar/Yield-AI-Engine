@@ -8,14 +8,121 @@ import uuid
 # --- 1. PAGE CONFIG (MUST BE FIRST) ---
 st.set_page_config(page_title="Yield.ai | MLE Evaluation Engine", layout="wide")
 
-# --- 2. PATH INJECTION ---
+# --- 2. GLOBAL "NEON SAAS" CSS INJECTION ---
+st.markdown("""
+    <style>
+    /* Global App Background */
+    .stApp {
+        background: radial-gradient(circle at top left, #12142b 0%, #070814 100%);
+    }
+
+    /* Gradient Glowing Buttons */
+    .stButton>button {
+        background: linear-gradient(90deg, #00ffcc 0%, #8a2be2 100%);
+        color: white !important;
+        border: none;
+        border-radius: 25px;
+        padding: 0.5rem 2rem;
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        box-shadow: 0 6px 20px rgba(0, 255, 204, 0.6);
+        transform: translateY(-2px);
+    }
+
+    /* Glassmorphism Expanders & Containers */
+    div[data-testid="stExpander"] {
+        background: rgba(20, 22, 43, 0.6);
+        border: 1px solid rgba(0, 255, 204, 0.2);
+        border-radius: 12px;
+        backdrop-filter: blur(4px);
+    }
+
+    /* Clean typography */
+    h1, h2, h3 {
+        font-weight: 300 !important;
+        letter-spacing: 1px;
+    }
+
+    /* Scorecard: Glowing Header */
+    .overall-score-glow {
+        font-size: 24px;
+        color: white;
+        text-align: center;
+        margin-bottom: 30px;
+        text-shadow: 0 0 10px rgba(138, 43, 226, 0.6);
+        font-family: sans-serif;
+        font-weight: 300;
+    }
+    .overall-score-glow span { color: #8a2be2; font-weight: bold; font-size: 32px; }
+
+    /* Scorecard: 3 Feature Boxes */
+    .feature-box {
+        background-color: rgba(10, 12, 30, 0.6);
+        border: 1px solid rgba(0, 255, 204, 0.2);
+        border-radius: 12px;
+        padding: 24px 16px;
+        text-align: center;
+        transition: all 0.3s ease;
+        height: 100%;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        backdrop-filter: blur(5px);
+    }
+    .feature-box:hover {
+        border-color: #00ffcc;
+        box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+        transform: translateY(-5px);
+    }
+    .feature-icon { font-size: 32px; margin-bottom: 12px; display: block; }
+    .feature-title { color: #00ffcc; font-size: 15px; font-weight: 500; margin-bottom: 8px; font-family: sans-serif; letter-spacing: 0.5px; }
+    .feature-value { color: #ffffff; font-size: 36px; font-weight: 700; margin: 0; font-family: sans-serif; }
+    .feature-desc { color: #8a8d9e; font-size: 12px; margin-top: 12px; line-height: 1.4; font-family: sans-serif; }
+    
+    /* Scorecard: Neon Glass Tags */
+    .matched-tag { 
+        background-color: rgba(0, 255, 204, 0.05); 
+        color: #00ffcc; 
+        padding: 6px 14px; 
+        border-radius: 20px; 
+        margin: 4px; 
+        display: inline-block; 
+        font-size: 13px; 
+        border: 1px solid rgba(0, 255, 204, 0.5);
+        box-shadow: 0 0 10px rgba(0, 255, 204, 0.15);
+        transition: all 0.2s ease;
+    }
+    .matched-tag:hover {
+        background-color: rgba(0, 255, 204, 0.15); 
+        box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
+    }
+
+    .missing-tag { 
+        background-color: rgba(255, 51, 102, 0.05); 
+        color: #ff3366; 
+        padding: 6px 14px; 
+        border-radius: 20px; 
+        margin: 4px; 
+        display: inline-block; 
+        font-size: 13px; 
+        border: 1px solid rgba(255, 51, 102, 0.5);
+        box-shadow: 0 0 10px rgba(255, 51, 102, 0.15);
+        transition: all 0.2s ease;
+    }
+    .missing-tag:hover {
+        background-color: rgba(255, 51, 102, 0.15); 
+        box-shadow: 0 0 15px rgba(255, 51, 102, 0.4);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 3. PATH INJECTION & SESSION LOGIC ---
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# --- 3. SESSION-BASED PRIVACY LOGIC ---
 if 'session_id' not in st.session_state:
     st.session_state['session_id'] = str(uuid.uuid4())
 
-# Create a private sandbox folder for this specific visitor
 session_base = os.path.join("data", "sessions", st.session_state['session_id'])
 raw_dir = os.path.join(session_base, "raw")
 processed_dir = os.path.join(session_base, "processed")
@@ -31,41 +138,55 @@ from src.database import init_db, get_all_evaluations
 from src.visualizer import create_radar_chart
 from src.optimizer import generate_optimized_bullets
 
-# Initialize the global DB structure if not exists
 init_db()
 
 # --- 5. UI COMPONENTS ---
 def render_scorecard(candidate_name, row_data):
     """Draws the professional SaaS-style dashboard using the CSV/DB row data."""
-    
-    # Convert the Pandas Series to a standard dictionary to prevent extraction errors
     row_dict = dict(row_data)
-
-    st.markdown("""
-        <style>
-        .matched-tag { background-color: #e6fffa; color: #2c7a7b; padding: 4px 10px; border-radius: 15px; margin: 3px; display: inline-block; font-size: 14px; border: 1px solid #81e6d9;}
-        .missing-tag { background-color: #fff5f5; color: #c53030; padding: 4px 10px; border-radius: 15px; margin: 3px; display: inline-block; font-size: 14px; border: 1px solid #feb2b2;}
-        </style>
-    """, unsafe_allow_html=True)
 
     st.subheader(f"📄 Evaluation: {candidate_name}")
     
-    # 👇 THIS IS THE MISSING PART THAT CAUSED THE CRASH 👇
     overall = row_dict.get("Score", 0)
     skill_m = row_dict.get("Skill Match", 0)
     sem_m = row_dict.get("Semantic Match", 0)
     exp_m = row_dict.get("Experience Relevance", 0)
-    # 👆 ---------------------------------------------- 👆
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Overall Score", f"{overall}%")
-    col2.metric("Skill Match", f"{skill_m}%")
-    col3.metric("Semantic Match", f"{sem_m}%")
-    col4.metric("Experience", f"{exp_m}%")
+    # Glowing Overall Score
+    st.markdown(f'<div class="overall-score-glow">Yield-AI Confidence Score: <span>{overall}%</span></div>', unsafe_allow_html=True)
+
+    # 3 Feature Boxes
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"""
+        <div class="feature-box">
+            <span class="feature-icon">🎯</span>
+            <div class="feature-title">Skill Match</div>
+            <div class="feature-value">{skill_m}%</div>
+            <div class="feature-desc">Direct overlap of technical JD keywords.</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""
+        <div class="feature-box" style="border-color: rgba(138, 43, 226, 0.3);">
+            <span class="feature-icon">🧠</span>
+            <div class="feature-title" style="color: #8a2be2;">Semantic Match</div>
+            <div class="feature-value">{sem_m}%</div>
+            <div class="feature-desc">Llama 3.1 contextual project alignment.</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""
+        <div class="feature-box" style="border-color: rgba(0, 153, 255, 0.3);">
+            <span class="feature-icon">📈</span>
+            <div class="feature-title" style="color: #0099ff;">Experience Relevance</div>
+            <div class="feature-value">{exp_m}%</div>
+            <div class="feature-desc">Career progression and tool seniority.</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    st.divider() 
+    st.write("") 
     
-    # The Explainer UI
     with st.expander("🔍 How is this score calculated?"):
         st.write("""
         **The Yield-AI Engine uses a weighted algorithm to ensure a balanced evaluation:**
@@ -74,7 +195,7 @@ def render_scorecard(candidate_name, row_data):
         * **Experience Relevance (25%):** Analysis of career progression and time spent with core technologies.
         """)
 
-    # Safely parse skills strings into lists
+    # Glassmorphism Skill Tags
     matched_skills = str(row_dict.get("Matched Skills", "")).split(", ")
     missing_skills = str(row_dict.get("Missing Skills", "")).split(", ")
 
@@ -103,6 +224,7 @@ if st.sidebar.button("🗑️ Clear My Session", type="secondary"):
     if os.path.exists(output_csv):
         os.remove(output_csv)
     st.sidebar.success("Session Cleared!")
+    time.sleep(1)
     st.rerun()
 
 # --- 7. MAIN UI ---
@@ -154,15 +276,12 @@ with tab1:
     with st.expander("🔓 Admin Access (View Global History)"):
         pw = st.text_input("Enter Admin Password", type="password")
     
-    # Initialize display_df
     display_df = pd.DataFrame()
-    
-    # Handle Secrets safely
     admin_pw = ""
     try:
         admin_pw = st.secrets["ADMIN_PASSWORD"]
     except Exception:
-        pass # Streamlit secrets not found locally, bypass for dev
+        pass 
 
     if pw and pw == admin_pw:
         st.success("Admin Mode: Showing all historical data.")
@@ -176,12 +295,10 @@ with tab1:
         selected_candidate = st.selectbox("Select Candidate", display_df["Candidate Name"].unique())
         candidate_row = display_df[display_df["Candidate Name"] == selected_candidate].iloc[0]
         
-        # 1. Show the New Professional Scorecard
         render_scorecard(candidate_row["Candidate Name"], candidate_row)
         
         st.markdown("---")
         
-        # 2. Show the Radar Chart visually
         st.subheader("📊 Skill Gap Visualization")
         chart = create_radar_chart(
             candidate_row["Candidate Name"], 
@@ -190,7 +307,6 @@ with tab1:
         )
         st.plotly_chart(chart, use_container_width=True)
         
-        # 3. Show the raw dataframe
         with st.expander("View Raw Data"):
             st.dataframe(display_df, use_container_width=True, hide_index=True)
     else:
