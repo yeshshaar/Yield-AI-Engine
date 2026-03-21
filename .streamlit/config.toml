@@ -1,6 +1,6 @@
 [theme]
-primaryColor = "#00ffcc" # Neon Cyan
-backgroundColor = "#070814" # Deep space navy/black
-secondaryBackgroundColor = "#12142b" # Slightly lighter navy for sidebars
-textColor = "#e0e0e0" # Off-white for readable text
-font = "sans serif"
+primaryColor = "#F5A623"
+backgroundColor = "#050508"
+secondaryBackgroundColor = "#0D0D12"
+textColor = "#E8EDF5"
+font = "monospace"
