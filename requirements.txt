@@ -40,3 +40,10 @@ plotly
 
 # ─── CI/CD (dev only) ────────────────────────────────────────────────────────
 # ruff, mypy, pytest, pytest-cov  ← installed separately in GitHub Actions
+
+
+
+pyyaml==6.0.1
+setuptools>=68.0.0
+wheel
+cython
