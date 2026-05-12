@@ -2,3 +2,4 @@ node_modules/
 .next/
 data/reports.json
 .env
+.vercel
